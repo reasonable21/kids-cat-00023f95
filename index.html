@@ -8,6 +8,7 @@
 <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='%232f6b52'/%3E%3Ctext x='50' y='68' font-size='58' text-anchor='middle'%3E%F0%9F%A7%B8%3C/text%3E%3C/svg%3E">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://developers.kakao.com/sdk/js/kakao.js"></script>
 <style>
 #expmap{position:fixed;left:0;right:0;bottom:0;top:0;z-index:5;display:none}
 body.mapview{overflow:hidden}
@@ -487,12 +488,23 @@ render();
   var JSKEY="56ee952cd45d9f7307689e21d57d2993";
   var LAB={"기업":"기업무료","민간":"민간유료","공공":"국가공공","농어촌":"농어촌·계절","전통":"전통·특화","축제":"지역축제"};
   var COL={"기업": "#3b6ea5", "민간": "#c07a2c", "공공": "#2f7d5b", "농어촌": "#7a8b3a", "전통": "#8a5a8f", "축제": "#cf5b52"};
-  // 카카오내비 앱을 목적지 설정된 채로 실행(앱 스킴). 좌표: x=경도, y=위도.
-  function naviHref(name,lat,lng){
+  // 카카오 SDK 초기화(카카오내비 실행용). JS키 + Web도메인 등록 필요.
+  try{ if(window.Kakao && JSKEY && !Kakao.isInitialized()) Kakao.init(JSKEY); }catch(e){}
+  function attr(s){return (s||"").replace(/"/g,"&quot;")}
+  // 카카오내비 버튼 HTML(팝업용). 클릭은 아래 위임 핸들러가 Kakao.Navi.start 실행.
+  function naviBtn(name,lat,lng,style){
     if(!JSKEY||lat==null) return "";
-    var p=encodeURIComponent(JSON.stringify({destination:{name:name,x:lng,y:lat},option:{coord_type:"wgs84"}}));
-    return "kakaonavi-sdk://navigate?appkey="+JSKEY+"&apiver=1.0&param="+p;
+    return '<a class="navibtn" href="#" data-name="'+attr(name)+'" data-lat="'+lat+'" data-lng="'+lng+'" style="'+style+'">🧭 카카오내비</a>';
   }
+  // 위임 클릭: 목록카드·지도팝업 어디서든 .navibtn 누르면 카카오내비 실행
+  document.addEventListener("click",function(e){
+    var b=e.target.closest && e.target.closest(".navibtn"); if(!b) return;
+    e.preventDefault();
+    try{
+      if(!window.Kakao||!Kakao.Navi){ alert("카카오 지도를 불러오지 못했어요(잠시 후 다시)."); return; }
+      Kakao.Navi.start({name:b.getAttribute("data-name"),x:parseFloat(b.getAttribute("data-lng")),y:parseFloat(b.getAttribute("data-lat")),coordType:"wgs84"});
+    }catch(err){ alert("카카오내비 실행 오류: "+err); }
+  });
   var map=null, layer=null;
   function esc(s){return (s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;")}
   function nav(d){return "https://map.naver.com/p/search/"+encodeURIComponent((d.n||"")+" "+(d.l||""))}
@@ -509,8 +521,7 @@ render();
     if(d.p)h+='<div style="font-size:12.5px">'+esc(d.p)+'</div>';
     if(d.m)h+='<div style="font-size:11.5px;color:#c07a2c">🍽 '+esc(d.m)+'</div>';
     h+='<div style="margin-top:6px">';
-    var nh=c?naviHref(d.n,c[0],c[1]):"";
-    if(nh)h+='<a href="'+nh+'" style="display:inline-block;background:#2f6b52;color:#fff;padding:4px 10px;border-radius:8px;font-weight:700;text-decoration:none;font-size:12.5px">🧭 카카오내비</a> ';
+    if(c)h+=naviBtn(d.n,c[0],c[1],"display:inline-block;background:#2f6b52;color:#fff;padding:4px 10px;border-radius:8px;font-weight:700;text-decoration:none;font-size:12.5px")+' ';
     h+='<a href="'+nav(d)+'" target="_blank" rel="noopener" style="color:#2f6b52;font-weight:700;text-decoration:none;font-size:12.5px">🗺️ 네이버</a>';
     if(d.u&&/\./.test(d.u)&&!/^\d|카카오|네이버|마이리얼|야놀자|@/.test(d.u))
       h+=' <a href="https://'+d.u.replace(/^https?:\/\//,"")+'" target="_blank" rel="noopener" style="color:#2f6b52;font-weight:700;text-decoration:none;font-size:12.5px">홈피 ↗</a>';
@@ -558,11 +569,12 @@ render();
     var cards=document.querySelectorAll("#grid .card");
     cards.forEach(function(card,i){
       var d=rows[i]; if(!d) return;
-      var c=COORD[d.n+" "+d.l]; var nh=c?naviHref(d.n,c[0],c[1]):"";
+      var c=COORD[d.n+" "+d.l]; if(!c) return;
       var foot=card.querySelector(".cfoot"); if(!foot||foot.querySelector(".navibtn")) return;
-      if(!nh) return;
       var a=document.createElement("a");
-      a.className="navibtn"; a.href=nh; a.textContent="🧭 카카오내비";
+      a.className="navibtn"; a.href="#";
+      a.setAttribute("data-name",d.n); a.setAttribute("data-lat",c[0]); a.setAttribute("data-lng",c[1]);
+      a.textContent="🧭 카카오내비";
       a.style.cssText="background:var(--accent);color:#fff;padding:4px 11px;border-radius:8px;font-weight:700;font-size:12.5px;text-decoration:none";
       foot.insertBefore(a, foot.firstChild);
     });
