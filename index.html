@@ -478,6 +478,41 @@ tb.onclick=()=>{const cur=root.getAttribute("data-theme")||(matchMedia("(prefers
 render();
 </script>
 
+<style>
+#catrow,#regrow{display:none}
+.fbar{display:flex;gap:7px;align-items:center;flex-wrap:wrap}
+.fsel{border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:999px;
+  padding:7px 30px 7px 14px;font-size:13px;font-family:inherit;-webkit-appearance:none;appearance:none;cursor:pointer;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%238b8478'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;background-position:right 12px center}
+.fbar .tools{margin-left:auto;gap:7px}
+.fbar .search{min-width:130px}
+@media (max-width:640px){
+  .controls{padding:9px 0!important}
+  .fbar .tools{margin-left:0;flex:1 1 100%;order:9}
+  .fbar .search{flex:1;min-width:0}
+  .fsel{flex:1;min-width:0}
+}
+</style>
+<script>
+(function(){
+  try{
+    var wrap=document.querySelector(".controls .wrap");
+    var reg=document.getElementById("regrow");
+    var tools=reg&&reg.querySelector(".tools");
+    if(!wrap||!tools||typeof CATS==="undefined") return;
+    var bar=document.createElement("div"); bar.className="filtrow fbar";
+    wrap.insertBefore(bar, wrap.firstChild);
+    var cs=document.createElement("select"); cs.className="fsel"; cs.setAttribute("aria-label","분류");
+    cs.innerHTML='<option value="전체">🗂 분류 전체</option>'+CATS.map(function(c){return '<option value="'+c.k+'">'+c.label+'</option>';}).join("");
+    cs.onchange=function(){ fCat=cs.value; render(); };
+    var rs=document.createElement("select"); rs.className="fsel"; rs.setAttribute("aria-label","지역");
+    rs.innerHTML='<option value="전체">📍 지역 전체</option>'+REGS.map(function(r){return '<option value="'+r+'">'+r+'</option>';}).join("");
+    rs.onchange=function(){ fReg=rs.value; render(); };
+    bar.appendChild(cs); bar.appendChild(rs); bar.appendChild(tools);
+  }catch(e){}
+})();
+</script>
 <div id="expmap"></div>
 <div class="mapcount" id="mapcount"></div>
 <script>
@@ -505,7 +540,7 @@ render();
       +'<div style="color:#8b8478;font-size:11px;margin:2px 0 4px">'+(LAB[d.c]||d.c)+' · '+esc(d.l)+' · '+esc(d.f)+'</div>';
     if(d.a)h+='<div style="font-size:11.5px"><b>대상</b> '+esc(d.a)+'</div>';
     if(d.p)h+='<div style="font-size:12.5px">'+esc(d.p)+'</div>';
-    if(d.m)h+='<div style="font-size:11.5px;color:#c07a2c">🍽 '+esc(d.m)+'</div>';
+    if(d.m)h+='<div style="font-size:11.5px"><a href="https://map.naver.com/p/search/'+encodeURIComponent(d.m)+'" target="_blank" rel="noopener" style="color:#c07a2c;text-decoration:none">🍽 '+esc(d.m)+' ↗</a></div>';
     h+='<div style="margin-top:6px">';
     var nh=c?naviHref(d.n,c[0],c[1]):"";
     h+='<a href="'+(nh||nav(d))+'"'+(nh?'':' target="_blank" rel="noopener"')+' style="display:inline-block;background:#2f6b52;color:#fff;padding:4px 11px;border-radius:8px;font-weight:700;text-decoration:none;font-size:12.5px">🗺️ 네이버 길찾기</a> ';
@@ -555,6 +590,12 @@ render();
     var cards=document.querySelectorAll("#grid .card");
     cards.forEach(function(card,i){
       var d=rows[i]; if(!d) return;
+      // 맛집 클릭 → 네이버 검색(길찾기)
+      var mf=card.querySelector(".fact .food");
+      if(mf && mf.textContent.trim() && mf.getElementsByTagName("a").length===0){
+        var tx=mf.textContent.trim();
+        mf.innerHTML='<a href="https://map.naver.com/p/search/'+encodeURIComponent(tx)+'" target="_blank" rel="noopener" style="color:inherit;text-decoration:underline;text-underline-offset:2px">'+tx+' ↗</a>';
+      }
       var c=COORD[d.n+" "+d.l]; if(!c) return;
       var mb=card.querySelector(".mapbtn");
       if(mb){ mb.setAttribute("href", naviHref(d.n,c[0],c[1])); mb.removeAttribute("target"); mb.textContent="🗺️ 네이버 길찾기"; }
