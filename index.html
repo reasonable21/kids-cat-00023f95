@@ -493,6 +493,17 @@ render();
   .fbar .search{flex:1;min-width:0}
   .fsel{flex:1;min-width:0}
 }
+/* 병렬(split) 모드: 좌 목록 + 우 지도, 선택 하이라이트 */
+.splitbtn{display:none}
+.card.sel{border-color:var(--accent)!important;box-shadow:0 0 0 2px var(--accent),var(--shadow)!important}
+@media (min-width:760px){
+  .splitbtn{display:inline-flex}
+  body.splitview #expmap{display:block;left:50%;right:0;bottom:0}
+  body.splitview header{display:none}
+  body.splitview .contentwrap{width:50%;max-width:none;margin:0;padding-right:14px}
+  body.splitview #grid{grid-template-columns:1fr}
+}
+#buildver{position:fixed;bottom:2px;left:5px;z-index:9998;font-size:9px;color:var(--ink3);opacity:.55;font-family:monospace;pointer-events:none}
 </style>
 <script>
 (function(){
@@ -515,6 +526,7 @@ render();
 </script>
 <div id="expmap"></div>
 <div class="mapcount" id="mapcount"></div>
+<div id="buildver">v 79b8cd</div>
 <script>
 (function(){
   if(typeof D==="undefined"||typeof L==="undefined") return;
@@ -558,18 +570,29 @@ render();
     h+='</div>';
     return h;
   }
+  var markerBy={};
   function drawMap(){
     if(!map)return;
-    layer.clearLayers();
+    layer.clearLayers(); markerBy={};
     var rows=filt(), shown=0, miss=0;
     rows.forEach(function(d){
       var c=COORD[d.n+" "+d.l];
       if(!c){miss++;return;}
       shown++;
-      L.circleMarker(c,{radius:6,weight:1.5,color:"#fff",fillColor:COL[d.c]||"#888",fillOpacity:.92})
-       .bindPopup(pop(d,c)).addTo(layer);
+      var key=d.n+" "+d.l;
+      var mk=L.circleMarker(c,{radius:6,weight:1.5,color:"#fff",fillColor:COL[d.c]||"#888",fillOpacity:.92}).bindPopup(pop(d,c));
+      mk.on("click",function(){ highlightCard(key); });
+      mk.addTo(layer); markerBy[key]=mk;
     });
     document.getElementById("mapcount").textContent="🗺️ "+shown+"곳"+(miss?(" (좌표없음 "+miss+")"):"");
+  }
+  function highlightCard(key){
+    var found=null;
+    document.querySelectorAll("#grid .card").forEach(function(c){
+      c.classList.remove("sel");
+      if(c.getAttribute("data-key")===key) found=c;
+    });
+    if(found){ found.classList.add("sel"); found.scrollIntoView({block:"center",behavior:"smooth"}); }
   }
   function ensure(){
     if(map)return;
@@ -580,17 +603,42 @@ render();
   }
   function fitTop(){var c=document.querySelector(".controls");document.getElementById("expmap").style.top=(c?c.offsetHeight:110)+"px";}
   // 토글 버튼을 컨트롤바에 삽입
+  // grid의 wrap에 병렬 레이아웃용 클래스
+  var gEl=document.getElementById("grid");
+  var gWrap=gEl&&gEl.closest?gEl.closest(".wrap"):null;
+  if(gWrap) gWrap.classList.add("contentwrap");
+
   var tools=document.querySelector(".tools")||document.querySelector(".controls .wrap")||document.body;
   var btn=document.createElement("button"); btn.className="viewtoggle"; btn.type="button"; btn.textContent="🗺️ 지도";
-  tools.appendChild(btn);
+  var sbtn=document.createElement("button"); sbtn.className="viewtoggle splitbtn"; sbtn.type="button"; sbtn.textContent="⇋ 병렬";
+  tools.appendChild(btn); tools.appendChild(sbtn);
+  function relayout(){ if(map){fitTop();setTimeout(function(){map.invalidateSize();drawMap();},60);} }
   btn.onclick=function(){
     var on=!document.body.classList.contains("mapview");
     document.body.classList.toggle("mapview",on);
+    if(on){document.body.classList.remove("splitview"); sbtn.classList.remove("on"); sbtn.textContent="⇋ 병렬";}
     btn.classList.toggle("on",on);
     btn.textContent=on?"🧸 목록":"🗺️ 지도";
-    if(on){ensure();fitTop();setTimeout(function(){map.invalidateSize();drawMap();},60);}
+    if(on){ensure();relayout();}
   };
-  window.addEventListener("resize",function(){if(document.body.classList.contains("mapview")){fitTop();if(map)map.invalidateSize();}});
+  sbtn.onclick=function(){
+    var on=!document.body.classList.contains("splitview");
+    document.body.classList.toggle("splitview",on);
+    if(on){document.body.classList.remove("mapview"); btn.classList.remove("on"); btn.textContent="🗺️ 지도";}
+    sbtn.classList.toggle("on",on);
+    sbtn.textContent=on?"⇋ 병렬 끄기":"⇋ 병렬";
+    if(on){ensure();relayout();}
+  };
+  // 병렬모드: 왼쪽 카드 탭 → 오른쪽 지도 해당 핀으로 이동+팝업
+  document.addEventListener("click",function(e){
+    if(!document.body.classList.contains("splitview")) return;
+    var card=e.target.closest&&e.target.closest("#grid .card"); if(!card) return;
+    if(e.target.closest("a,button")) return;
+    var key=card.getAttribute("data-key"); var mk=key&&markerBy[key];
+    highlightCard(key);
+    if(mk&&map){ map.setView(mk.getLatLng(), Math.max(map.getZoom(),13)); mk.openPopup(); }
+  });
+  window.addEventListener("resize",function(){var b=document.body;if((b.classList.contains("mapview")||b.classList.contains("splitview"))&&map){fitTop();map.invalidateSize();}});
   // 목록 카드의 기존 네이버 버튼을 '길찾기 바로'(nmap 앱 실행)로 업그레이드(render 후, rows 순서=카드 순서)
   function injectCards(){
     var rows=filt();
@@ -598,6 +646,7 @@ render();
     var cards=document.querySelectorAll("#grid .card");
     cards.forEach(function(card,i){
       var d=rows[i]; if(!d) return;
+      card.setAttribute("data-key", d.n+" "+d.l);   // 병렬모드 지도↔카드 연결키
       // 맛집 클릭 → 네이버 검색(길찾기)
       var mf=card.querySelector(".fact .food");
       if(mf && mf.textContent.trim() && mf.getElementsByTagName("a").length===0){
