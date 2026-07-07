@@ -2,25 +2,21 @@
 <html lang="ko"><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex, nofollow">
-<title>카카오내비로 이동…</title>
-<script src="https://developers.kakao.com/sdk/js/kakao.js"></script>
+<title>네이버 길찾기로 이동…</title>
 <body style="font-family:'Apple SD Gothic Neo',sans-serif;text-align:center;padding:48px 20px;color:#333">
-<div style="font-size:40px">🧭</div>
-<p style="font-size:17px;font-weight:700">카카오내비를 여는 중…</p>
+<div style="font-size:40px">🗺️</div>
+<p style="font-size:17px;font-weight:700">네이버 지도 길찾기를 여는 중…</p>
 <p id="dest" style="color:#888"></p>
-<p><a id="go" href="#" style="display:inline-block;margin-top:8px;background:#2f6b52;color:#fff;padding:10px 18px;border-radius:10px;font-weight:700;text-decoration:none">안 열리면 여기 탭</a></p>
+<p><a id="go" href="#" style="display:inline-block;margin-top:8px;background:#2f6b52;color:#fff;padding:10px 18px;border-radius:10px;font-weight:700;text-decoration:none">앱이 안 열리면: 웹으로 보기</a></p>
 <script>
 var p=new URLSearchParams(location.search);
-var name=p.get('name')||'목적지', x=p.get('x'), y=p.get('y');   // x=경도 y=위도
+var name=p.get('name')||'목적지', y=p.get('y'), x=p.get('x');   // y=위도 x=경도
 document.getElementById('dest').textContent=name;
-function go(){
-  try{
-    if(!window.Kakao){alert('카카오 SDK 로드 실패');return;}
-    if(!Kakao.isInitialized())Kakao.init('56ee952cd45d9f7307689e21d57d2993');
-    Kakao.Navi.start({name:name,x:parseFloat(x),y:parseFloat(y),coordType:'wgs84'});
-  }catch(e){alert('카카오내비 실행 오류: '+e);}
+var web='https://map.naver.com/p/search/'+encodeURIComponent(name);
+document.getElementById('go').href=web;
+if(y&&x){
+  location.href='nmap://route/car?dlat='+y+'&dlng='+x+'&dname='+encodeURIComponent(name)+'&appname=reasonable21.github.io';
+  setTimeout(function(){ /* 앱 없으면 사용자가 아래 버튼으로 웹 */ }, 1200);
 }
-document.getElementById('go').onclick=function(e){e.preventDefault();go();};
-if(x&&y) setTimeout(go,300);
 </script>
 </body>
